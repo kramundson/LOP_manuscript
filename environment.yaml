@@ -1,4 +1,4 @@
-name: fastq2vcf
+name: LOP_manuscript
 channels:
  - conda-forge
  - bioconda
@@ -24,7 +24,7 @@ dependencies:
   - r-base=3.3.2
   - r-tidyverse
   - r-egg
-  - r-
+  - r-wavethresh
   - r-rlang=0.2.0
   - seqtk
   - vcflib

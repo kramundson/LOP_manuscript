@@ -1,6 +1,12 @@
 experiments/1_high_cov_variants/data
+experiments/1_high_cov_variants/.snakemake
 experiments/2_low_cov_cnv/data
+experiments/2_low_cov_cnv/.snakemake
 experiments/3_fake_hybrids/data
+experiments/3_fake_hybrids/.snakemake
 experiments/4_low_cov_snp/data
+experiments/4_low_cov_snp/.snakemake
 experiments/ref/GCN*
 experiments/ref/potato*
+experiments/.DS*
+experiments/ref/.snakemake/

@@ -40,8 +40,8 @@ Install R package MeanShift from CRAN archive
 
 ```
 wget https://cran.r-project.org/src/contrib/Archive/MeanShift/MeanShift_1.1-1.tar.gz
-tar -xzvf MeanShift_1.1-1.tar.gz
-# todo figure out the rest of the command line install on server
+R CMD INSTALL MeanShift_1.1-1.tar.gz
+rm MeanShift_1.1-1.tar.gz
 ```
 
 ## Experiments
