@@ -1,0 +1,28 @@
+from Bio import SeqIO
+import re
+import pandas as pd # probably do not need
+
+shell.executable("bash")
+
+configfile: "config.yaml"
+
+rule all:
+    input:
+        config["genome"],
+        config["genome"]+".bwt",
+        config["genome"]+".fai",
+        re.sub("(\.fasta$|\.fa$)", ".genome", config["genome"]),
+        re.sub("(\.fasta$|\.fa$)", "_250k_windows.bed", config["genome"]),
+        # re.sub("(\.fasta$|\.fa$)", "_10k_windows.bed", config["genome"]),
+        re.sub("(\.fasta$|\.fa$)", "_chrom_windows.bed", config["genome"]),
+        re.sub("(\.fasta$|\.fa$)", ".dict", config["genome"]),
+        "GCN_10k_bin_"+config["genome"]
+
+include: "rules/record_GCN.rules"
+include: "rules/gatk_fasta_dict.rules"
+include: "rules/get_genome.rules"
+include: "rules/clean_genomes.rules"
+include: "rules/combine_genomes.rules"
+include: "rules/bwa_index.rules"
+include: "rules/samtools_faidx.rules"
+include: "rules/bedtools_genome_windows.rules"

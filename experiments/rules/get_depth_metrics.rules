@@ -1,0 +1,12 @@
+rule get_depth_metrics:
+    input:
+        bam="data/merged/{sample}.bam",
+        ind="data/merged/{sample}.bam.bai",
+        windows=re.sub("(\.fasta$|\.fa$)", "_10k_windows.bed", config["genome"]),
+    output:
+        "data/merged/{sample}-depth-genome.tsv",
+        "data/merged/summarized-depth-{sample}.tsv"
+    shell: """
+        samtools depth -q 20 -a {input[0]} > {output[0]}
+        python scripts/window_depth_summarizer.py -w {input.windows} -b {output[0]} -o {output[1]}
+    """

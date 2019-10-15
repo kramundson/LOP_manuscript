@@ -1,0 +1,16 @@
+import re
+import pandas as pd
+shell.executable('bash')
+
+configfile: "config.yaml"
+
+rule all:
+    input:
+        "units.tsv"
+#         ["data/reads/{}-SRR6123032-SRR6123031-{}.fastq.gz".format(x,x+1000) for x in range(10,111)],
+#         ["data/reads/{}-SRR6123032-SRR6123183-{}.fastq.gz".format(x,x+1000) for x in range(2011,2111)],
+#         ["data/reads/{}-SRR6123032-uniparental.fastq.gz".format(x) for x in range(4011,4111)]
+
+include: "rules/make_simhybs.rules",
+include: "rules/zip_simhybs.rules",
+include: "rules/make_units_tsv.rules"

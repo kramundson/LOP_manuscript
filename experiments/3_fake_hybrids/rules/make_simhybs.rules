@@ -1,0 +1,11 @@
+rule make_simhybs:
+    input: config["reads"]
+    output:
+        ["data/reads/{}-SRR6123032-SRR6123031-{}.fastq".format(x,x+1000) for x in range(10,111)],
+        ["data/reads/{}-SRR6123032-SRR6123183-{}.fastq".format(x,x+1000) for x in range(2011,2111)],
+        ["data/reads/{}-SRR6123032-uniparental.fastq".format(x) for x in range(4011,4111)]
+    shell: """
+        python scripts/sample_reads_from_memory.py -p1 {input[0]} -p1n 2015413 -p2 {input[1]} -p2n 1007706 -s 10 -n 100
+        python scripts/sample_reads_from_memory.py -p1 {input[0]} -p1n 2015413 -p2 {input[2]} -p2n 1007706 -s 2011 -n 100
+        python scripts/sample_reads_from_memory.py -p1 {input[0]} -p1n 3023119 -s 4011 -n 100
+    """

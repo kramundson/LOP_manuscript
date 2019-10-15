@@ -1,0 +1,17 @@
+rule get_genome:
+    params:
+        nucleus=[config["genomelinks"][0],config["genomelinks"][0].split("/")[-1]],
+        chloro=[config["genomelinks"][1],config["genomelinks"][1].split("/")[-1]],
+        mito=[config["genomelinks"][2], config["genomelinks"][2].split("/")[-1]]
+    output:
+       config["organelle_genomes"]
+    shell: """
+        wget {params.nucleus[0]} ;
+        unzip {params.nucleus[1]} ;
+        
+        wget {params.chloro[0]} ;
+        unzip {params.chloro[1]} ;
+        
+        wget {params.mito[0]} ;
+        unzip {params.mito[1]}
+        """

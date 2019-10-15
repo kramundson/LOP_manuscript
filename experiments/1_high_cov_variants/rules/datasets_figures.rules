@@ -1,0 +1,14 @@
+rule datasets_figures:
+    input:
+        expand("data/calls/{chrom}-calls.vcf", chrom=["chr01", "chr02", "chr03"])
+    output:
+        "Dataset_S1.tsv",
+        "Dataset_S2.tsv",
+        "Dataset_S3.tsv",
+        "LOP_SNP.bed",
+        "FigS7.pdf",
+        "FigS8.pdf",
+        "FigS9.pdf"
+    shell: """
+        Rscript scripts/expt1_datasets_figures.R
+    """

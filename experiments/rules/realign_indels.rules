@@ -1,0 +1,25 @@
+rule realign_indels:
+    input:
+        ref=config["genome"],
+        dict=re.sub("(\.fasta$|\.fa$)", ".dict", config["genome"]),
+        #bam="data/pairfilt/{sample}-{unit}.bam",
+        #intervals="data/intervals/{sample}-{unit}.intervals"
+        bam="data/merged/{sample}.bam",
+        intervals="data/intervals/{sample}.intervals"
+    output:
+        #"data/realigned/{sample}-{unit}.bam"
+        "data/realigned/{sample}.bam",
+        "data/realigned/{sample}.bam.bai"
+    log:
+        # "logs/realigned/{sample}-{unit}.log"
+        "logs/realigned/{sample}.log"
+    shell: """
+        gatk3 -T IndelRealigner \
+            -R {input.ref} \
+            -I {input.bam} \
+            -targetIntervals {input.intervals} \
+            -o {output[0]} \
+            2> {log}
+        samtools index {output[0]}
+        """
+        

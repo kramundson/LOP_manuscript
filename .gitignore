@@ -1,0 +1,6 @@
+experiments/1_high_cov_variants/data
+experiments/2_low_cov_cnv/data
+experiments/3_fake_hybrids/data
+experiments/4_low_cov_snp/data
+experiments/ref/GCN*
+experiments/ref/potato*

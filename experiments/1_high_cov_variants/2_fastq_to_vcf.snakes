@@ -1,0 +1,63 @@
+# Run init_genome.snakes before running this Snakefile
+# This Snakefile handles dataset-specific analysis, assuming that reference genome
+# file dependencies and file of output filenames have been made using init_genome.snakes
+
+import os, re
+import pandas as pd
+shell.executable("bash")
+
+configfile: "config.yaml"
+
+units = pd.read_csv(config["units"], index_col=["sample", "unit"], dtype=str, sep="\t")
+units.index = units.index.set_levels([i.astype(str) for i in units.index.levels])
+
+samples = {}
+for i in units.index.levels[0]:
+    samples[i] = ["data/clipOverlap/{}-{}.bam".format(i,j) for j in units.loc[i].index]
+
+scaffolds = [line.rstrip('\n') for line in open("data/intervals/scaffold_intervals.txt", 'r')]
+chroms = ["chr01", "chr02", "chr03", "chr04", "chr05", "chr06", "chr07", "chr08",
+          "chr09", "chr10", "chr11", "chr12", "chr00", "ChrUn"]
+
+def is_single_end(sample,unit):
+    return pd.isnull(units.loc[(sample, unit), "fq2"])
+
+def get_fastq(wildcards):
+    return "data/reads/"+units.loc[(wildcards.sample, wildcards.unit), ["fq1", "fq2"]].dropna()
+
+def get_trimmed(wildcards):
+    if not is_single_end(**wildcards):
+        return expand("data/trimmed/{sample}-{unit}-{group}.fastq.gz",
+            group=[1,2], **wildcards)
+    return "data/trimmed/{sample}-{unit}.fastq.gz".format(**wildcards)
+
+rule all:
+    input:
+        ["data/merged/{}.bam.bai".format(x) for x in units.index.levels[0]],
+        ["data/merged/summarized-depth-{}.tsv".format(x) for x in units.index.levels[0]],
+        "data/calls/all-calls.vcf", # raw vcf
+        expand("data/calls/{chrom}-filtered-calls.vcf", chrom = chroms),
+        "Dataset_S1.tsv",
+        "Dataset_S2.tsv",
+        "Dataset_S3.tsv",
+        "LOP_SNP.bed",
+        "FigS7.pdf",
+        "FigS8.pdf",
+        "FigS9.pdf"
+
+include: "rules/get_depth_metrics.rules"
+include: "rules/datasets_figures.rules"
+include: "rules/split_and_filter_vcf.rules"
+include: "rules/merge_scaffold_vcfs.rules"
+include: "rules/freebayes_scaffold.rules"
+include: "rules/realign_indels.rules"
+include: "rules/realigner_target_creator.rules"
+include: "rules/samtools_index_pe.rules"
+include: "rules/samtools_merge.rules"
+include: "rules/clip_overlap.rules"
+include: "rules/filter_good_pairs.rules"
+include: "rules/mark_duplicates.rules"
+include: "rules/align.rules"
+include: "rules/cutadapt_pe.rules"
+include: "rules/cutadapt.rules"
+include: "rules/get_SRA_reads.rules"

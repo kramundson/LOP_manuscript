@@ -1,0 +1,17 @@
+import os, re
+import pandas as pd
+from Bio import SeqIO
+shell.executable("bash")
+
+configfile: "config.yaml"
+
+units = pd.read_csv(config["units"], index_col=["sample", "unit"], dtype=str, sep="\t")
+units.index = units.index.set_levels([i.astype(str) for i in units.index.levels])
+
+rule all:
+    input:
+        # "fofn/bamfiles_fofn.done",
+        "data/intervals/scaffold_intervals.txt"
+
+# include: "rules/init_bam_merge_pe.rules"
+include: "rules/init_scaffold_intervals.rules"

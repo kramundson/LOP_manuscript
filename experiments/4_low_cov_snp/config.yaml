@@ -1,0 +1,52 @@
+units: "../2_low_cov_cnv/units.tsv"
+
+genome: "../ref/potato_dm_v404_all_pm_un_chloro_mito.fasta"
+    
+genomelinks:
+    ["http://solanaceae.plantbiology.msu.edu/data/potato_dm_v404_all_pm_un.fasta.zip",
+    "http://solanaceae.plantbiology.msu.edu/data/S_tuberosum_Group_Phureja_chloroplast_DM1-3-516-R44.fasta.zip",
+    "http://solanaceae.plantbiology.msu.edu/data/S_tuberosum_Group_Phureja_mitochondrion_DM1-3-516-R44.fasta.zip"]
+              
+    
+reads:
+    ["data/reads/SRR6123031_1.fastq.gz",
+     "data/reads/SRR6123032_1.fastq.gz",
+     "data/reads/SRR6123183_1.fastq.gz"]
+
+# sequencing adapter
+adapter: AGATCGGAAGAGC
+
+params:
+
+    prefetch:
+        # ascp: "--ascp-path '/home/kramundson/.aspera/connect/bin/ascp|/home/kramundson/.aspera/connect/etc/asperaweb_id_dsa.openssh' --max-size 50000000000"
+        threads: 4
+
+    cutadapt_pe:
+        qual: "-q 10 -m 40"
+        threads: 8
+    
+    cutadapt_se:
+        qual: "-q 10 -m 40"
+        threads: 8
+    
+    cutadapt_hardtrim:
+        qual: "-q 10 -m 40 -l 50"
+        threads: 8
+    
+    align:
+        threads: 8
+        sort_mem: 4G
+    
+    mark_duplicates:
+        jarpath: "/share/comailab/kramundson/miniconda3/envs/han/share/picard-2.14.1-0/picard.jar"
+        java_heap: "-Xms512m -Xmx4g"
+        opt: "REMOVE_DUPLICATES=true TMP_DIR=./tmp ASSUME_SORT_ORDER=coordinate MAX_FILE_HANDLES_FOR_READ_ENDS_MAP=1000"
+    
+    bedtools:
+        window: 250000
+    
+    pileup:
+        threads: 12
+    
+    map_qual_filter: "-q 10"

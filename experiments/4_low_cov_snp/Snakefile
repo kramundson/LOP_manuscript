@@ -1,0 +1,62 @@
+import pandas as pd
+shell.executable("bash")
+
+configfile: "config.yaml"
+
+units = pd.read_table(config["units"], index_col=["sample", "unit"], dtype=str)
+units.index = units.index.set_levels([i.astype(str) for i in units.index.levels])
+
+samples = {}
+for i in units.index.levels[0]:
+    samples[i] = ["data/dedup/{}-{}.bam".format(i, j) for j in units.loc[i].index]
+
+rule all:
+    input:
+        "1Mb_bin_alleles_LOP.txt",
+        "indel_bin_alleles_LOP.txt"
+
+rule run_pileup:
+    input:
+        config["genome"],
+        ["../2_low_cov_cnv/data/mapQ-filter/{}.bam".format(i[0]) for i in units.index],
+        ["../2_low_cov_cnv/data/mapQ-filter/{}.bam.bai".format(i[0]) for i in units.index]
+    output:
+        temp("LOP_pileup.txt"),
+        "parsed_LOP-pileup.txt"
+    threads: config["params"]["pileup"]["threads"]
+    shell: """
+        python2 scripts/beta-run-mpileup-KRA.py -r {input[0]} -o {output[0]} -t {threads}
+        python2 scripts/mpileup-parser-v2.py -t {threads} -f {output[0]}
+    """
+    
+rule call_alleles:
+    input:
+        "parsed_LOP-pileup.txt",
+        "../1_high_cov_variants/Dataset_S2.tsv"
+    output:
+        "het_hom_alleles_LOP_pileup.txt"
+    shell: """
+        python2 scripts/CallAllelesAB.py {input[0]} {output} {input[1]}
+    """
+    
+rule bin_genotypes:
+    input:
+        "het_hom_alleles_LOP_pileup.txt",
+        "../1_high_cov_variants/Dataset_S2.tsv"
+    output:
+        "1Mb_bin_alleles_LOP.txt"
+    params:
+        binsize=1000000
+    shell: """
+        python2 scripts/bin-by-genotypeC.py {input[0]} {output} {params.binsize} {input[1]}
+    """
+
+rule indel_allelic_ratio:
+    input:
+        "het_hom_alleles_LOP_pileup.txt",
+        "../2_low_cov_cnv/LOP_outlier_vars_to_genotype.tsv"
+    output:
+        "indel_bin_alleles_LOP.txt"
+    shell: """
+        python scripts/indel-allelic-ratio-v3.py -a {input[0]} -l {input[1]} -o {output[0]}
+    """

@@ -1,0 +1,783 @@
+---
+title: "LOP Manuscript Figures"
+author: "Kirk Amundson"
+date: 2019_1012
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+library(grid)
+library(gridExtra)
+```
+
+```{r}
+files <- dir(path = "../experiments/2_low_cov_cnv/data/plots", pattern = "-dosage_plot.tsv", full.names = T)
+files
+```
+
+```{r}
+names(all_dosage) <- str_extract(files, "[24]x_.+") %>% 
+  str_remove("-dosage_plot.tsv")
+names(all_dosage)
+```
+
+
+```{r}
+all_dosage <- files %>% 
+  map(read_delim, delim = " ", col_names = T)
+  
+for (i in 1:length(files)) {
+  all_dosage[[i]]$sample <- str_replace(files[i], "../experiments/2_low_cov_cnv/data/plots/", "")
+  all_dosage[[i]]$sample <- gsub("-dosage_plot.tsv", "", all_dosage[[i]]$sample)
+  all_dosage[[i]]$sample_num <- i
+}
+
+bin_dosage <- all_dosage %>% 
+  bind_rows() %>% 
+  mutate(sample = str_replace(sample, "-dosage_plot.tsv", "")) %>% 
+  filter(sample != "2x_LOP868_279")
+
+chrom_dosage <- bin_dosage %>% 
+  group_by(chrom, sample, sample_num) %>% 
+  summarize(chrom_readcount = sum(readcount)) %>% 
+  arrange(sample, chrom) %>% 
+  filter(!is.na(chrom)) %>% 
+  ungroup()
+```
+
+```{r}
+with_totals <- chrom_dosage %>% 
+  group_by(sample, sample_num) %>% 
+  summarize(total_readcount = sum(chrom_readcount)) %>% 
+  left_join(chrom_dosage, .) %>% 
+  ungroup()
+```
+
+```{r}
+with_control <- with_totals %>% 
+  filter(sample == "4x_LOP868") %>% 
+  mutate(chromshort = str_replace(chrom, "chr", "")) %>% 
+  mutate(chromshort = str_replace(chromshort, "^0", "")) %>% 
+  rename(control_chrom_readcount = chrom_readcount) %>% 
+  rename(control_total_readcount = total_readcount) %>%
+  select(-sample, -sample_num) %>% 
+  left_join(with_totals, .) %>% 
+  mutate(normcov = 2* (chrom_readcount / total_readcount) / (control_chrom_readcount / control_total_readcount)) %>% 
+  filter(!sample %in% c("4x_LOP868", "2x_LOP868_279"))
+```
+
+```{r}
+fig2A <- with_control %>% 
+  filter(normcov <= mean(with_control$normcov + 3*sd(with_control$normcov))) %>% 
+  ggplot(., aes(x = sample_num, y = normcov)) +
+  geom_vline(xintercept = c(with_control$sample_num[which(with_control$normcov >= mean(with_control$normcov) + 3 * sd(with_control$normcov))]), color = "gray70") +
+  geom_point() +
+  geom_text(data = filter(with_control, normcov >= mean(with_control$normcov) + 3*sd(with_control$normcov)), aes(x = sample_num, y = normcov, label = chromshort), size = 5, fontface = "bold") +
+  geom_line(y = mean(with_control$normcov), color = "green") +
+  geom_line(y = mean(with_control$normcov) + 3 * sd(with_control$normcov), color = "red") +
+  scale_x_continuous(breaks = c(1,167), labels = c("1", "167")) +
+  scale_y_continuous(limits = c(1.6, 3.3)) +
+  ggtitle("A") +
+  labs(x = "Individual", y = "Chromosome\nCopy Number") +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        panel.background=element_rect(fill="white",color="black"),
+        axis.title.x=element_text(size=18),
+        axis.title.y=element_text(size=18,angle= 90, vjust=0.5), plot.title=element_text(size=24,face="bold",hjust=0,color="black"),
+        axis.text.x=element_text(size=18,color="black"),
+        axis.text.y=element_text(size=18,color="black"),
+        panel.grid.major.x = element_line(color = "gray70"))
+fig2A
+# ggsave("Fig2A.pdf", plot=fig2A, width = 18, height = 3, units = "in", device = "pdf")
+```
+
+> This is a mathematical representation of trisomy, so I can use this to go back and make overlay plots
+wihthout having to manually specify them.
+
+```{r}
+trisomics <- with_control$sample[which(with_control$normcov >= mean(with_control$normcov) + 3 * sd(with_control$normcov))]
+```
+
+```{r}
+chrom_overlay <- function(df, chr) {
+  plt <- df %>% 
+    filter(chrom == chr) %>% 
+    filter(sample %in% trisomics) %>% 
+    filter(binsize >= 2.5e5) %>% 
+    ggplot(., aes(x = start, y = normcov, fill = sample)) +
+    geom_line(aes(color = sample), size = 1) +
+    geom_line(data = filter(df, chrom == chr & !sample %in% trisomics & binsize >= 2.5e5), aes(x = start, y = normcov, fill = sample), alpha = 0.2, size = 0.5) +
+    facet_wrap(~chrom, strip.position = "r") +
+    scale_x_continuous(breaks = seq(0,8e7,by=2e7), labels = seq(0,80,by=20)) +
+    guides(fill = F, color = F) +
+    labs(x = "Position (Mb)", y = "Standardized\nCoverage") +
+    theme_bw() +
+      theme(
+      panel.grid.minor.x = element_blank(),
+      panel.grid.minor.y = element_blank(),
+      panel.grid.major.y = element_line(color="gray30", size = 0.2),
+      panel.grid.major.x = element_blank(),
+      strip.background = element_rect(fill = "white", color = "black"),
+      panel.background = element_rect(fill = "white", color = "black"),
+      axis.text = element_text(size = 14),
+      axis.title = element_text(size = 16),
+      strip.text = element_text(size = 14))
+  return(plt)
+  # print(plt)
+  # ggsave(paste(chr, "_dosage_overlay.pdf", plot = plt, width = 6, height = 2, units = "in", device = "pdf")) # save these if needed
+}
+```
+
+```{r}
+fig3a <- chrom_overlay(bin_dosage, "chr01") + ggtitle("A")
+```
+
+Last part, do high coverage CNV here to finish Fig. S3
+
+```{r}
+# dps <- dir(path = "../..")
+dp_cols <- c("chrom", "start", "end", "mean_dp", "median_dp")
+dp_files <- dir(pattern = "summarized-depth", path = "../experiments/1_high_cov_variants/data/merged/", full.names = T)
+
+dp <- dp_files %>% 
+  map(read_tsv, col_names = dp_cols)
+
+sc <- rep(NA, length(dp_files))
+for (i in 1:length(dp_files)) {
+  dp[[i]] <- left_join(dp[[i]], read_tsv("../experiments/ref/GCN_10k_bin_potato_dm_v404_all_pm_un_chloro_mito.fasta", col_names = T))
+  dp[[i]]$sample <- str_extract(dp_files[i], "[0-9]x_LOP868.+")
+  dp[[i]]$gc_norm_dp <- dp[[i]]$median_dp / dp[[i]]$GC_content
+  set.seed(5)
+  mtx <- t(matrix(data = c(sample(na.omit(dp[[i]]$gc_norm_dp), 1000), rep(0,1000)), ncol=2))
+  clusters <- msClustering(mtx, kernel = "epanechnikovKernel", h= quantile(dist(mtx[1,]), 0.25))
+  sc[i] <- clusters$components[1,1]
+}
+
+dp <- dp %>%
+  bind_rows() %>%
+  mutate(sample = str_remove(sample, ".tsv$"))
+```
+
+```{r}
+fig_4a <- dp %>% 
+  filter(chrom == "chr06") %>% 
+  filter(N_content <= 0.3) %>% 
+  filter(sample == "4x_LOP868") %>% 
+  ggplot(., aes(x = start, y = gc_norm_dp)) + 
+  geom_point(alpha = 0.3, size = 0.8) +
+  labs(x = "", y = "Alca Tarma Copy Number") +
+  ggtitle("A") +
+  scale_y_continuous(limits = c(0, 220), breaks = c(0, sc[4]*.25, sc[4]*.5, sc[4]*0.75, sc[4], sc[4]*1.25, sc[4]*1.5, sc[4]*1.75, sc[4]*2), labels = c(0,1,2,3,4,5,6,7,8)) +
+  scale_x_continuous(limits = c(0,6e7), breaks = seq(0, 6e7, by = 2e7), labels = seq(0, 60, by = 20)) +
+  facet_wrap(~chrom, nrow = 12, strip.position = "right") +
+  theme(
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.y = element_line(color = "gray30", size = 0.2),
+    panel.grid.minor.y = element_blank(),
+    panel.background = element_rect(fill = "white", color = "black"),
+    axis.text = element_text(size = 14),
+    axis.title = element_text(size = 16),
+    strip.text = element_text(size = 14),
+    # plot.title = element_text(size = 24, face = "bold"),
+    strip.background = element_rect(fill = "white", color = "black")
+  )
+```
+
+```{r}
+fig_4b <- dp %>% 
+  filter(chrom == "chr06") %>% 
+  filter(start >= 3.2e7 & start <= 3.4e7) %>%
+  filter(N_content <= 0.3) %>% 
+  filter(sample == "4x_LOP868") %>% 
+  ggplot(., aes(x = start, y = gc_norm_dp)) + 
+  geom_point() +
+  geom_line() +
+  labs(x = "", y = "Alca Tarma Copy Number") +
+  ggtitle("B") +
+  scale_y_continuous(limits = c(0, 220), breaks = c(0, sc[4]*.25, sc[4]*.5, sc[4]*0.75, sc[4], sc[4]*1.25, sc[4]*1.5, sc[4]*1.75, sc[4]*2), labels = c(0,1,2,3,4,5,6,7,8)) +
+  scale_x_continuous(breaks = seq(3.2e7, 3.4e7, by = 2.5e5), labels = seq(32,34,by=0.25)) +
+  facet_wrap(~chrom, nrow = 12, strip.position = "right") +
+  theme(
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.y = element_line(color = "gray30", size = 0.2),
+    panel.grid.minor.y = element_blank(),
+    panel.background = element_rect(fill = "white", color = "black"),
+    axis.text = element_text(size = 14),
+    axis.title = element_text(size = 16),
+    strip.text = element_text(size = 14),
+    # plot.title = element_text(size = 24, face = "bold"),
+    strip.background = element_rect(fill = "white", color = "black")
+  )
+fig_4b
+```
+
+```{r}
+fig_4c <- bin_dosage %>% 
+  filter(chrom == "chr06" & between(start, 3.2e7, 3.4e7)) %>% 
+  ggplot(., aes(x = start, y = normcov)) +
+  geom_quasirandom(alpha = 0.8, size = 0.8) +
+  guides(color = F) +
+  labs(x = "", y = "Standardized Coverage") +
+  scale_x_continuous(breaks = seq(3.2e7,3.4e7,by=2.5e5), labels=seq(32,34,by=0.25)) +
+  facet_wrap(~chrom, strip.position = "r") +
+  ggtitle("C") +
+  theme_bw() +
+  theme(
+    # axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.minor.y = element_blank(),
+    panel.grid.major.y = element_line(color="gray30", size = 0.2),
+    panel.grid.major.x = element_blank(),
+    strip.background = element_rect(fill = "white", color = "black"),
+    panel.background = element_rect(fill = "white", color = "black"),
+    axis.text = element_text(size = 14),
+    axis.title = element_text(size = 16),
+    strip.text = element_text(size = 14))
+fig_4c
+```
+
+```{r}
+fig_4d <- chrom_overlay(bin_dosage, "chr06") + ggtitle("D")
+fig_4d
+```
+
+```{r}
+fig4 <- grid.arrange(fig_4a, fig_4b, fig_4c, fig_4d, nrow = 4)
+ggsave("Fig4.png", plot = fig4, width = 12, height = 12, units = "in", device = "png")
+ggsave("Fig4.pdf", plot = fig4, width = 12, height = 12, units = "in", device = "pdf")
+```
+
+```{r}
+for (i in sprintf('chr%02d', 1:12)) {
+  plt <- chrom_overlay(bin_dosage, i)
+  dplt <- dp %>% 
+  filter(chrom == i) %>% 
+  filter(N_content <= 0.3) %>% 
+  filter(sample == "4x_LOP868") %>% 
+  ggplot(., aes(x = start, y = gc_norm_dp)) + 
+  geom_point(alpha = 0.3, size = 0.8) +
+  labs(x = "", y = "Alca Tarma\nCopy Number") +
+  # ggtitle("A") +
+  scale_y_continuous(limits = c(0, 220), breaks = c(0, sc[4]*.25, sc[4]*.5, sc[4]*0.75, sc[4], sc[4]*1.25, sc[4]*1.5, sc[4]*1.75, sc[4]*2), labels = c(0,1,2,3,4,5,6,7,8)) +
+  scale_x_continuous(limits = c(0,6e7), breaks = seq(0, 6e7, by = 2e7), labels = seq(0, 60, by = 20)) +
+  facet_wrap(~chrom, nrow = 12, strip.position = "right") +
+  theme(
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.y = element_line(color = "gray30", size = 0.2),
+    panel.grid.minor.y = element_blank(),
+    panel.background = element_rect(fill = "white", color = "black"),
+    axis.text = element_text(size = 14),
+    axis.title = element_text(size = 16),
+    strip.text = element_text(size = 14),
+    # plot.title = element_text(size = 24, face = "bold"),
+    strip.background = element_rect(fill = "white", color = "black")
+  )
+  comb <- grid.arrange(dplt,plt)
+  ggsave(paste0(i,"_figS3_combo_plot.png"), plot = comb, width = 9, height = 4, units = "in", device = "png")
+}
+```
+
+Fig. S5
+
+```{r}
+names(sc) <- str_extract(dp_files, "LOP.+") %>%
+  str_replace(., ".tsv", "") %>% 
+  str_replace(., "_", ".")
+names(sc)
+```
+
+```{r}
+overlay_emphasize_one <- function(df, dihap, chr) {
+  plt <- df %>%
+    filter(chrom == chr) %>% 
+    filter(sample != dihap) %>% 
+    filter(binsize >= 2.5e5) %>%
+    ggplot(., aes(x = start, y = normcov, fill = sample)) +
+    geom_line(alpha = 0.2) +
+    geom_line(data = filter(df, chrom == chr & sample == dihap & binsize >= 2.5e5), color = "red", size = 1.2) +
+    scale_x_continuous(breaks = seq(0,6e7,by=2e7), labels=seq(0,60,by=20)) +
+    facet_wrap(~chrom, strip.position = "r") +
+    labs(x = "Position (Mb)", y = "Standardized Coverage") +
+    theme_bw() +
+    theme(strip.background = element_rect(fill = "white", color = "black"),
+          axis.text = element_text(size = 14),
+          axis.title = element_text(size = 16),
+          strip.text = element_text(size = 14),
+          panel.grid.major.x = element_blank(),
+          panel.grid.minor = element_blank())
+  return(plt)
+}
+
+hicov <- function(df, dihap, chr, s, e) {
+  
+  sc_to_use <- dihap %>% 
+    str_remove("[24]x_") %>% 
+    str_replace(., "_", ".")
+  # print(sc_to_use)
+  
+  sc_loc <- sc[which(names(sc) == sc_to_use)]
+  
+  plt <- df %>% 
+    filter(chrom == chr) %>% 
+    filter(between(start, s, e)) %>% 
+    filter(N_content <= 0.3) %>% 
+    filter(sample == dihap) %>% 
+    ggplot(., aes(x = start, y = gc_norm_dp)) +
+    # geom_point() +
+    # geom_line() +
+    labs(x = "Position (Mb)", y = paste(sc_to_use, "Copy Number", sep = " ")) +
+    facet_wrap(~chrom, strip.position = "r") +
+    scale_x_continuous(breaks = seq(s,e, by = 2.5e5), labels = seq(s/1e6, e/1e6, by = 0.25)) +
+    scale_y_continuous(limits = c(0, 2*sc_loc), breaks = c(0, 0.5*sc_loc, sc_loc, 1.5*sc_loc, 2*sc_loc), labels = seq(0,4)) +
+    theme_bw() +
+    theme(strip.background = element_rect(fill = "white", color = "black"),
+          axis.text = element_text(size = 14),
+          axis.title = element_text(size = 16),
+          strip.text = element_text(size = 14),
+          panel.grid.major.x = element_blank(),
+          panel.grid.minor = element_blank())
+  return(plt)
+}
+```
+
+```{r}
+s5_1 <- overlay_emphasize_one(bin_dosage, "2x_LOP868_004", "chr06")
+s5_2 <- overlay_emphasize_one(bin_dosage, "2x_LOP868_064", "chr06")
+s5_3 <- overlay_emphasize_one(bin_dosage, "2x_LOP868_305", "chr06")
+s5_4 <- hicov(dp, "2x_LOP868_004", "chr06", 3.2e7, 3.4e7) + geom_point() + geom_line()
+s5_5 <- hicov(dp, "2x_LOP868_064", "chr06", 3.2e7, 3.4e7) + geom_point() + geom_line()
+s5_6 <- hicov(dp, "2x_LOP868_305", "chr06", 3.2e7, 3.4e7) + geom_point() + geom_line()
+s5_7 <- hicov(dp, "2x_LOP868_004", "chr06", 0, 6e7) + geom_point(alpha = 0.3, size = 0.8) + scale_x_continuous(limits = c(0, 6e7), breaks = seq(0, 6e7, by = 2e7), labels = seq(0, 60, by = 20))
+s5_8 <- hicov(dp, "2x_LOP868_064", "chr06", 0, 6e7) + geom_point(alpha = 0.3, size = 0.8) + scale_x_continuous(limits = c(0, 6e7), breaks = seq(0, 6e7, by = 2e7), labels = seq(0, 60, by = 20))
+s5_9 <- hicov(dp, "2x_LOP868_305", "chr06", 0, 6e7) + geom_point(alpha = 0.3, size = 0.8) + scale_x_continuous(limits = c(0, 6e7), breaks = seq(0, 6e7, by = 2e7), labels = seq(0, 60, by = 20))
+```
+
+```{r}
+s5 <- grid.arrange(s5_1, s5_2, s5_3, s5_4, s5_5, s5_6, s5_7, s5_8, s5_9, nrow = 3)
+ggsave("Fig_S5.png", plot = s5, width = 18, height = 12, units = "in", device = "png")
+```
+
+Fig S4: Kernel density estimator plots illlustrating dosage variant clustering to get genotypes
+Note, red points were drawn in as manual points, using x values specified according to the
+cluster center, and the Y axis point drawn s/t it was at the peak of the kernel density function.
+
+```{r}
+kde_bin <- function(df, chr, s) {
+  active_bin <- filter(df, chrom == chr & start == s) %>% 
+    mutate(bin = paste(chrom, start, end, sep = "_")) 
+  plt <- ggplot(active_bin, aes(x = normcov)) +
+    geom_histogram(aes(y = ..density..), binwidth = 0.1, fill = "blue", alpha = 0.5) +
+    geom_density(kernel = "ep", bw = quantile(dist(active_bin$normcov), 0.4)) +
+    scale_x_continuous(limits = c(0,4)) +
+    facet_wrap(~bin, strip.position = "r")
+  return(plt)
+}
+```
+
+```{r}
+s4_1 <- kde_bin(bin_dosage, "chr01", 4.25e6)
+s4_2 <- kde_bin(bin_dosage, "chr01", 2.425e7)
+s4_3 <- kde_bin(bin_dosage, "chr01", 7.95e7)
+ggsave("Fig_S4_1.png", plot = s4_1, width = 4, height = 2, units = "in", device = "png")
+ggsave("Fig_S4_2.png", plot = s4_2, width = 4, height = 2, units = "in", device = "png")
+ggsave("Fig_S4_3.png", plot = s4_3, width = 4, height = 2, units = "in", device = "png")
+```
+
+Fig. S6: Power analysis of rare indels in LOP dihaploid population.
+Note, I added the figure legend in Affinity Designer by copying the
+legend from figure s6_legend
+
+```{r}
+simhyb_les_alleles <- read_tsv("../experiments/3_fake_hybrids/indel_bin_alleles_simhyb.txt", col_names = T) %>% 
+  mutate(control_group = ifelse(grepl("SRR6123031", sample), "Simulated Alca Tarma x PL4",
+                                ifelse(grepl("SRR6123183", sample), "Simulated Alca Tarma x IVP101", "Simulated Matrilineal"))) %>% 
+  mutate(control_group = factor(control_group, levels = c("Simulated Matrilineal", "Simulated Alca Tarma x IVP101", "Simulated Alca Tarma x PL4"))) %>% 
+  mutate(bin = paste(chrom, as.integer(start), as.integer(end), sep = "_"))
+```
+
+```{r}
+head(simhyb_les_alleles)
+```
+
+```{r}
+plot_power_simhyb_lesion <- function(df, chr, s) {
+  plt <- df %>% 
+    filter(chrom == chr) %>% 
+    filter(start == s) %>% 
+    ggplot(., aes(x = PercALesion, fill = control_group)) +
+    geom_histogram(binwidth = 0.01, alpha = 0.8) +
+    labs(x = "Percent HI Allele", y = "Count") +
+    facet_wrap(~bin) +
+    theme_bw() +
+    # guides(fill = F) +
+    scale_x_continuous(limits = c(-0.01,1)) +
+    scale_fill_manual(values = c("#00BA38", "#F8766D", "#00BFC4")) +
+    theme(panel.grid = element_blank(),
+          axis.text = element_text(size = 14),
+          axis.title = element_text(size = 16),
+          strip.text = element_text(size = 14),
+          strip.background = element_rect(fill = "white", color = "black"))
+  return(plt)
+}
+```
+
+```{r}
+s6_1 <- plot_power_simhyb_lesion(simhyb_les_alleles, "chr01", 2.025e7) +
+  guides(fill = F) +
+  annotate("text", x = 0.15, y=40, label = "LOP868.398") +
+  annotate("segment", x = 0, xend = 0.15, y = 0, yend = 38, linetype = "dashed")
+
+s6_2 <- plot_power_simhyb_lesion(simhyb_les_alleles, "chr01", 2.325e7) +
+  guides(fill = F) +
+  annotate("text", x = 0.15, y=40, label = "LOP868.398") +
+  annotate("segment", x = 0, xend = 0.15, y = 0, yend = 38, linetype = "dashed")
+
+s6_3 <-plot_power_simhyb_lesion(simhyb_les_alleles, "chr01", 2.425e7) +
+  guides(fill = F) +
+  annotate("text", x = 0.15, y=40, label = "LOP868.488") +
+  annotate("segment", x = 0.009433962264150943, xend = 0.15, y = 0, yend = 38, linetype = "dashed")
+
+s6_4 <-plot_power_simhyb_lesion(simhyb_les_alleles, "chr01", 5.275e7) +
+  guides(fill = F) +
+  annotate("text", x = 0.15, y=40, label = "LOP868.398") +
+  annotate("segment", x = 0, xend = 0.15, y = 0, yend = 38, linetype = "dashed")
+
+s6_5 <- plot_power_simhyb_lesion(simhyb_les_alleles, "chr01", 5.4e7) +
+  guides(fill = F) +
+  annotate("text", x = 0.15, y=40, label = "LOP868.398") +
+  annotate("segment", x = 0, xend = 0.15, y = 0, yend = 38, linetype = "dashed")
+
+s6_6 <- plot_power_simhyb_lesion(simhyb_les_alleles, "chr01", 6.7e7) +
+  guides(fill = F) +
+  annotate("text", x = 0.26, y=35, label = "LOP868.292") +
+  annotate("segment", x = 0.010416667, xend = 0.26, y = 0, yend = 33, linetype = "dashed") +
+  annotate("text", x = 0.15, y=45, label = "LOP868.460") +
+  annotate("segment", x = 0.003703704, xend = 0.15, y = 0, yend = 43, linetype = "dashed")
+
+s6_7 <- plot_power_simhyb_lesion(simhyb_les_alleles, "chr04", 1.3e7) +
+  guides(fill = F) +
+  annotate("text", x = 0.15, y=55, label = "LOP868.272") +
+  annotate("segment", x = 0.002074688796680498, xend = 0.15, y = 0, yend = 53, linetype = "dashed")
+
+s6_8 <- plot_power_simhyb_lesion(simhyb_les_alleles, "chr09", 3.275e7) +
+  guides(fill = F) +
+  annotate("text", x = 0.15, y=40, label = "LOP868.493") +
+  annotate("segment", x = 0, xend = 0.15, y = 0, yend = 38, linetype = "dashed")
+
+s6_9 <- plot_power_simhyb_lesion(simhyb_les_alleles, "chr09", 4e7) +
+  guides(fill = F) +
+  annotate("text", x = 0.15, y=40, label = "LOP868.493") +
+  annotate("segment", x = 0, xend = 0.15, y = 0, yend = 38, linetype = "dashed")
+
+s6 <- grid.arrange(s6_1, s6_2, s6_3, s6_4, s6_5, s6_6, s6_7, s6_8, s6_9, nrow = 3)
+ggsave("Fig_S6.pdf", width = 16, height = 10, units = "in", device = "pdf", plot = s6)
+
+s6_legend <- plot_power_simhyb_lesion(simhyb_les_alleles, "chr09", 4e7) +
+  theme(legend.position = "bottom",
+        legend.text = element_text(size = 16),
+        legend.title = element_text(size = 16))
+ggsave("FigS6_legend.pdf", plot = s6_legend, width = 10, height = 3, units = "in", device = "pdf")
+```
+
+Fig. S2: Binned SNP result, including simulated hybrid power test.
+
+```{r}
+melt_bin_alleles <- function(x) {
+  df <- read_tsv(x, na = ".")
+  
+  ObsHI <- df %>% 
+    select(Chrom,Start,End,Max,matches("Obs%A$")) %>% 
+    mutate(chrbin = floor(Start/df$End[1])) %>% 
+    gather(Ind, ObsPerHI, -Chrom, -Start, -End, -Max, -chrbin) %>% 
+    mutate(Ind = str_replace_all(Ind, "v-(.+)-Obs%A", "\\1"))
+  
+  CalcHI <- df %>% 
+    select(Chrom, Start, End, Max, matches('Calc%A$')) %>% 
+    mutate(chrbin = floor(Start/df$End[1])) %>% 
+    gather(Ind, CalcPerHI, -Chrom, -Start, -End, -Max, -chrbin) %>% 
+    mutate(Ind = str_replace_all(Ind, "v-(.+)-Calc%A", "\\1")) 
+  
+  Cov <- df %>% 
+    select(Chrom, Start, End, Max, matches('Cov$')) %>% 
+    mutate(chrbin = floor(Start/df$End[1])) %>% 
+    gather(Ind, Cov, -Chrom, -Start, -End, -Max, -chrbin) %>% 
+    mutate(Ind = str_replace_all(Ind, "v-(.+)-Cov", "\\1"))
+  
+  df2 <- ObsHI %>% 
+    inner_join(.,Cov) %>% 
+    mutate(HIcalls = round(Cov * ObsPerHI / 100)) %>% 
+    filter(Chrom != "chr00") %>% 
+    # filter(!grepl("sub", Ind)) %>% 
+    mutate(prenducer = str_extract(Ind, "(SRR6123031)|(SRR6123183)")) %>% 
+    mutate(Inducer = ifelse(prenducer == "SRR6123031", "PL4", NA)) %>% 
+    mutate(Inducer = ifelse(prenducer == "SRR6123183", "IVP101", Inducer)) %>% 
+    mutate(ObsPerHI_filt = ifelse(Cov >= 10, ObsPerHI, NA)) %>% 
+    mutate(start_cen = Start + (End-Start)/2) 
+  print(head(df2))
+  
+  return(df2)
+}
+```
+
+```{r}
+big <- melt_bin_alleles("../experiments/3_fake_hybrids/1Mb_bin_alleles_simhyb.txt") %>% 
+  mutate(`Control Group` = ifelse(Inducer == "PL4", "Simulated Alca Tarma x PL4", ifelse(Inducer == "IVP101", "Simulated Alca Tarma x IVP101", "Simulated Matrilineal")))
+```
+
+```{r}
+pc <- big %>% 
+  filter(grepl("SRR6123031|SRR6123183", Ind))
+
+nc <- big %>% 
+  filter(grepl("uniparental", Ind))
+```
+
+```{r}
+# Define bins
+bigp <- big %>% 
+  select(Chrom, Start, End) %>% 
+  distinct() %>% 
+  mutate(overlap_test = NA) %>% 
+  mutate(missing_n_test = NA) %>%
+  mutate(missing_n_frac = NA) %>% 
+  mutate(missing_p_test = NA) %>% 
+  mutate(missing_p_frac = NA)
+nrow(bigp)
+
+# define critical fraction of missing data
+nafrac_crit <- 0.05 # may have to futz with this
+```
+
+```{r}
+for (i in 1:nrow(bigp)) {
+  
+  chrom <- bigp$Chrom[i]
+  strt <- bigp$Start[i]
+  endd <- bigp$End[i]
+  
+  # Define range of values for bin in negative control population
+  rng_p <- pc %>% 
+    filter(Chrom == chrom) %>% 
+    filter(Start == strt) %>% 
+    filter(End == endd) %>% 
+    select(ObsPerHI)
+  
+  pmin <- min(rng_p$ObsPerHI, na.rm = T)
+  print(paste("pmin:", pmin))
+  
+  pmax <- max(rng_p$ObsPerHI, na.rm = T)
+  print(paste("pmax:", pmax))
+  
+  nafrac_p <- sum(is.na(rng_p$ObsPerHI)) / length(rng_p$ObsPerHI)
+  
+  # Define range of values for bin in positive control population
+  rng_n <- nc %>% 
+    filter(Chrom == chrom) %>% 
+    filter(Start == strt) %>% 
+    filter(End == endd) %>% 
+    select(ObsPerHI)
+  
+  nmin <- min(rng_n$ObsPerHI, na.rm = T)
+  print(paste("nmin:", nmin))
+  
+  nmax <- max(rng_n$ObsPerHI, na.rm = T)
+  print(paste("nmax:", nmax))
+  
+  nafrac_n <- sum(is.na(rng_n$ObsPerHI)) / length(rng_n$ObsPerHI)
+  
+  # Define PASS/FAIL criteria as variables in original data frame
+  # first failure criterion: if max of negative control greater than min of positive control
+  bigp$overlap_test[i] = ifelse(nmax >= pmin, "FAIL", "PASS") # can then cbind when I'm done.
+  
+  # second failture criterion: missing data in negative control
+  bigp$missing_n_test[i] <- ifelse(nafrac_n >= nafrac_crit, "FAIL", "PASS")
+  bigp$missing_n_frac[i] <- nafrac_n
+  
+  # third failure criterion: missing data in positive control
+  bigp$missing_p_test[i] <- ifelse(nafrac_p >= nafrac_crit, "FAIL", "PASS")
+  bigp$missing_p_frac[i] <- nafrac_p
+}
+```
+
+```{r}
+qc_bins <- left_join(pc, bigp) %>% 
+  mutate(ObsPerHI_qc = ifelse(overlap_test == "PASS", ObsPerHI, NA))
+```
+
+```{r}
+real <- melt_bin_alleles("../experiments/4_low_cov_snp/1Mb_bin_alleles_LOP.txt")
+```
+
+```{r}
+real3 <- real %>% 
+  filter(!(Ind %in% c("2x_IVP_101", "2x_PL_4", "4x_LOP868", "2x_LOP868_279"))) %>% 
+  filter(Chrom != "chr00") %>% 
+  left_join(., bigp) %>% 
+  mutate(ObsPerHI_qc = ifelse(overlap_test == "PASS", ObsPerHI, NA)) %>% 
+  mutate(ObsPerHI_qc_cov = ifelse(Cov < 30, NA, ObsPerHI_qc)) %>% 
+  mutate(ObsPerHI_qc_50cov = ifelse(Cov < 50, NA, ObsPerHI_qc))
+```
+
+```{r}
+fig_s2 <- real3 %>% 
+  ggplot(., aes(x = Start, y = ObsPerHI_qc_cov, fill = Ind)) +
+  geom_line(size = 0.5, alpha = 0.5) +
+  geom_line(data = qc_bins, aes(x = Start, y = ObsPerHI_qc, fill = Ind, color = `Control Group`), size = 0.2, alpha = 0.3) +
+  facet_wrap(~Chrom, nrow = 6, strip.position = "r") +
+  labs(x = "Position (Mb)", y = "%HI SNPs") +
+  scale_x_continuous(limits = c(0,8e7), breaks = seq(0,8e7,by=2e7), labels=seq(0,80,by=20)) +
+  scale_y_continuous(limits = c(0,100)) +
+  # scale_color_manual(values = c("#00BA38", "#619CFF", "#F8766D")) +
+  theme_bw() +
+  theme(panel.grid.minor = element_blank(),
+        panel.grid.major.x = element_blank(),
+        panel.grid.major.y = element_line(linetype = "dotted"),
+        legend.position = "bottom",
+        axis.text = element_text(size = 14),
+        axis.title = element_text(size = 16),
+        strip.text = element_text(size = 14))
+fig_s2
+ggsave("Fig_S2.png", width = 10, height = 10, units = "in", device = "png", plot = fig_s2)
+ggsave("Fig_S2.pdf", width = 10, height = 10, units = "in", device = "pdf", plot = fig_s2)
+```
+
+Overlay combined dosage and 1Mb SNP plots for Fig. S1.
+These were later put together in Affinity Designer with metaphase spreads, if spreads were available.
+TODO: put raw images of spreads in a separate folder.
+
+```{r}
+numblanks_snp <- 10
+mid <- function(x) {
+  n = floor(nrow(x)/2)
+  return(x$bin[n])
+}
+```
+
+```{r}
+plot.snp <- function(x,y,z) {
+  keep <- real3 %>% 
+    filter(Ind == x) %>% 
+    select(Chrom, Start, End, Max, chrbin, Ind, ObsPerHI, Cov, HIcalls, ObsPerHI_qc_cov)
+    
+  keep$bin <- seq(1:nrow(keep))
+  # print(head(keep))
+  
+  stuf <- c(rep(NA, numblanks_snp))
+  stuffer <- data.frame("Chrom"=stuf,
+                        "Start"=stuf,
+                        "End"=stuf,
+                        "Max"=stuf,
+                        "chrbin"=stuf,
+                        "Ind"=stuf,
+                        "ObsPerHI"=stuf,
+                        "Cov"=stuf,
+                        "HIcalls"=stuf,
+                        "ObsPerHI_qc_cov"=stuf,
+                        "bin"=stuf)
+  chr.list <- split(keep, f=keep$Chrom)
+  chr.list.stuffed <- lapply(chr.list[1:11], function(x) rbind(x,stuffer))
+  ind.mod <- bind_rows(chr.list.stuffed, chr.list[[12]])
+  ind.mod$bin2 <- seq(1:nrow(ind.mod))
+  
+  midpoints <- sapply(chr.list[1:12], mid)
+  if (z == T) {
+    x.axis.breaks <- which(ind.mod$bin %in% midpoints)
+    x.axis.labels <- names(midpoints)
+  } else {
+    x.axis.breaks <- seq(1,12)
+    x.axis.labels <- rep("",12)
+  }
+
+    plt.ind.JMPlike <- ggplot(ind.mod, aes(x=bin2,y=ObsPerHI_qc_cov)) +
+    labs(x="", y="% HI SNPs") +
+    ggtitle(" ") +
+    # geom_line(y=0.0, color="black", linetype="dashed", size = 2) +
+    # geom_line(y = 33/4, color = "black", linetype = "dashed") +
+    geom_line(color=y, fill=NULL,size=3) +
+    scale_color_manual(values=c(rep(y,12))) +
+    theme(panel.grid.minor.x = element_blank(),
+          panel.grid.minor.y=element_blank(),
+          panel.grid.major.x = element_blank(),
+          panel.grid.major.y = element_line(color="black", linetype="dashed"),
+          panel.background = element_rect(fill="white",color="black"),
+          axis.text.x = element_text(size=18, color="black"),
+          axis.text.y=element_text(size=18,color="black"),
+          axis.title.y=element_text(size=18, angle=90, vjust = 0.5, margin = margin(t = 0, r = 25, b = 0, l = 0)),
+          axis.ticks = element_blank(),
+          plot.title=element_text(size=24,face="bold",hjust=0),
+          panel.border = element_rect(color = "black", fill = NA, size = 2)) +
+    geom_point(size = 2.0,color="black") +
+    guides(fill=FALSE, color=FALSE) +
+    scale_y_continuous(limits=c(-5,100), breaks=c(100,66,33,0)) +
+    scale_x_continuous(breaks=x.axis.breaks, labels=x.axis.labels)
+  plt.ind.JMPlike
+}
+```
+
+```{r}
+# retrieves midpoints of each chromosome
+mid.dosage <- function(x) {
+  n=floor(nrow(x)/2)
+  return(x$bin[n])
+}
+# Dosage plot function arguments:
+# x is the name of the .tsv fle to be read in
+# y is the title of the plot. I gsub the string x to get the title. I could hard code this but I leave it as an arg to be more customizable.
+plot.dosage <- function(ind, y) {
+  todo <- which(names(all_dosage) == ind)
+  # print(todo)
+  
+  plt.dosage <- all_dosage[[todo]] %>%
+    ggplot(., aes(x = bin2, y = normcov)) +
+    labs(x = "", y="Standardized\nCopy Number") +
+    geom_line(color = "#008080", fill = "white", size = 3) +
+    ggtitle(y) +
+    geom_point(size = 2, color = "black") +
+    guides(fill = F, color = F) +
+    scale_y_continuous(limits = c(0,5), breaks = seq(0,5), labels = seq(0,5)) +
+    theme(panel.grid.minor.x = element_blank(),
+          panel.grid.minor.y=element_blank(),
+          panel.grid.major.x = element_blank(),
+          panel.grid.major.y = element_line(color="black", linetype="dashed"),
+          panel.background = element_rect(fill="white",color="black"),
+          axis.text.x = element_blank(),
+          axis.text.y=element_text(size=18,color="black"),
+          axis.title.y=element_text(size=18, angle=90, vjust = 0.5, margin = margin(t = 0, r = 25, b = 0, l = 0)),
+          axis.ticks = element_blank(),
+          plot.title=element_text(size=24,face="bold",hjust=0),
+          panel.border = element_rect(fill = NA, color = "black", size = 2))
+  plt.dosage
+}
+```
+
+```{r}
+plot.dosage("2x_LOP868_064", "LOP868.064")
+plot.snp("2x_LOP868_004", "#008080", TRUE)
+```
+
+```{r}
+stack.plot <- function(x) {
+  gt <- ggplotGrob(plot.dosage(x, ""))
+  gb <- ggplotGrob(plot.snp(x, "#008080", TRUE))
+  fig.s1.template <- rbind(gt,gb, size = "first")
+  fig.s1.template$widths <- unit.pmax(gt$widths)
+  fig.s1.template$layout[grepl("guide", fig.s1.template$layout$name), c("t", "b")] <- c(1, nrow(fig.s1.template))
+  grid.newpage()
+  grid.draw(fig.s1.template)
+  # out.fh <- gsub("^", "2018_0531_", i)
+  out.fh <- gsub("$", "_stack_plot.eps", x)
+  ggsave(out.fh, plot=fig.s1.template, width = 24, height = 6, units = "in", device = "eps") # 18 inch width for supplemental figures, 24 inch width for main
+}
+```
+
+```{r}
+for (i in names(all_dosage)) {
+  stack.plot(i)
+}
+```
+
+Circos plot generation done in a subdirectory of ```results```

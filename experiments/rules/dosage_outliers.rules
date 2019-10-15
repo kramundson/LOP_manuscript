@@ -1,0 +1,7 @@
+rule dosage_outliers:
+    input:
+        "2019_0107_LOP_250k_dosage_genotypes_50percband.tsv"
+    output:
+        "LOP_outlier_vars_all.tsv",
+        "LOP_outlier_vars_to_genotype.tsv"
+    shell: "Rscript scripts/dosage_outliers.R"

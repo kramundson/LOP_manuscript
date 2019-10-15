@@ -1,0 +1,21 @@
+# awk parses .fai to make bedtools "genome" file
+# makewindows generates nonoverlapping 1Mb windows used for dosage analysis
+
+rule bedtools_genome_windows:
+    input:
+        fasta=config["genome"],
+        fai=config["genome"]+".fai",
+    output:
+        bedtools_genome=re.sub("(\.fasta$|\.fa$)", ".genome", config["genome"]),
+        bedtools_windows_chrom=re.sub("(\.fasta$|\.fa$)", "_chrom_windows.bed", config["genome"]),
+        bedtools_windows_250=re.sub("(\.fasta$|\.fa$)", "_250k_windows.bed", config["genome"]),
+        bedtools_windows_10=re.sub("(\.fasta$|\.fa$)", "_10k_windows.bed", config["genome"])
+    params:
+        chrom=config["params"]["bedtools"]["window"]["chrom"],
+        bin=config["params"]["bedtools"]["window"]["bin"]
+    shell: """
+        awk -v OFS='\t' '{{print $1,$2}}' {input.fai} > {output.bedtools_genome} ;
+        bedtools makewindows -g {output.bedtools_genome} -w {params.chrom} > {output.bedtools_windows_chrom}
+        bedtools makewindows -g {output.bedtools_genome} -w {params.bin} > {output.bedtools_windows_250}
+        bedtools makewindows -g {output.bedtools_genome} -w 10000 > {output.bedtools_windows_10}
+    """

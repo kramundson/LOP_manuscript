@@ -1,0 +1,6 @@
+rule record_GCN:
+    input:
+        config["genome"]
+    output:
+        "GCN_10k_bin_"+config["genome"]
+    shell: "python scripts/recordGCN.py -s 10000 -f {input} -o {output}"

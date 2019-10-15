@@ -1,0 +1,24 @@
+genome: "potato_dm_v404_all_pm_un_chloro_mito.fasta"
+
+organelle_genomes: ["potato_dm_v404_all_pm_un.fasta",
+                    "S_tuberosum_Group_Phureja_chloroplast_DM1-3-516-R44.fasta",
+                    "S_tuberosum_Group_Phureja_mitochondrion_DM1-3-516-R44.fasta"]
+
+genomelinks: ["http://solanaceae.plantbiology.msu.edu/data/potato_dm_v404_all_pm_un.fasta.zip",
+              "http://solanaceae.plantbiology.msu.edu/data/S_tuberosum_Group_Phureja_chloroplast_DM1-3-516-R44.fasta.zip",
+              "http://solanaceae.plantbiology.msu.edu/data/S_tuberosum_Group_Phureja_mitochondrion_DM1-3-516-R44.fasta.zip"]
+
+params:
+    prefetch:
+        ascp: "--ascp-path '/home/kramundson/.aspera/connect/bin/ascp|/home/kramundson/.aspera/connect/etc/asperaweb_id_dsa.openssh' --max-size 50000000000"
+        threads: 4
+
+    bedtools:
+        window:
+            chrom: 100000000
+            bin: 250000
+    
+    repeatmasker:
+        threads: 48
+
+repbase: "viridiplantae_repbase.fasta"

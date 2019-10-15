@@ -1,0 +1,11 @@
+rule make_units_tsv:
+    input:
+        ["data/reads/{}-SRR6123032-SRR6123031-{}.fastq.gz".format(x,x+1000) for x in range(10,111)],
+        ["data/reads/{}-SRR6123032-SRR6123183-{}.fastq.gz".format(x,x+1000) for x in range(2011,2111)],
+        ["data/reads/{}-SRR6123032-uniparental.fastq.gz".format(x) for x in range(4011,4111)]
+    output: "units.tsv"
+    shell: """
+        ls {input} > tmp_names
+        awk -v OFS="\t" BEGIN '{{print "sample","unit","fq1","fq2","trim"}} \
+            {{print $1,$1,$1".fastq.gz","NaN","hardtrim"}}' tmp_names > {output}
+    """

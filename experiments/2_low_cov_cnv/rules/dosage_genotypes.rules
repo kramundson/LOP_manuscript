@@ -1,0 +1,8 @@
+rule dosage_genotypes:
+    input:
+        ["data/plots/{}-dosage_plot.tsv".format(i[0]) for i in units.index]
+    output:
+        "2019_0107_LOP_250k_dosage_genotypes_50percband.tsv"
+    shell: """
+        Rscript scripts/dosage_genotypes.R
+    """

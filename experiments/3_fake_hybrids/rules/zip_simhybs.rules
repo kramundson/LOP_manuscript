@@ -1,0 +1,4 @@
+rule zip_simhybs:
+    input: "data/reads/{pref}.fastq"
+    output: "data/reads/{pref}.fastq.gz"
+    shell: "gzip {input}"

@@ -1,0 +1,98 @@
+import re
+import pandas as pd
+shell.executable('bash')
+
+configfile: "config.yaml"
+
+units = pd.read_table(config["units"], index_col=["sample", "unit"], dtype=str)
+units.index = units.index.set_levels([i.astype(str) for i in units.index.levels])
+
+samples = {}
+for i in units.index.levels[0]:
+    samples[i] = ["data/dedup/{}-{}.bam".format(i, j) for j in units.loc[i].index]
+
+def is_single_end(sample,unit):
+    return pd.isnull(units.loc[(sample, unit), "fq2"])
+
+def get_fastq(wildcards):
+    return "data/reads/"+units.loc[(wildcards.sample, wildcards.unit), ['fq1', 'fq2']].dropna()
+
+def get_fastq_test(wildcards):
+    tmp = units.loc[units['parhap'] != 'hardtrim']
+    return "data/reads/"+tmp.loc[(wildcards.sample,wildcards.unit), ['fq1','fq2']].dropna()
+
+def get_fastq_control(wildcards):
+    tmp = units.loc[units['parhap'] == 'hardtrim']
+    return "data/reads/"+tmp.loc[(wildcards.sample,wildcards.unit), ['fq1','fq2']].dropna()
+
+def get_trimmed(wildcards):
+    if not is_single_end(**wildcards):
+        # paired-end sample should be aligned as such
+        return expand("data/trimmed/{sample}-{unit}-{group}.fastq.gz",
+            group=[1,2], **wildcards)
+    # single end sample
+    return "data/trimmed/{sample}-{unit}.fastq.gz".format(**wildcards)
+
+rule all:
+    input: 
+        ["data/mapQ-filter/{}.bam.bai".format(i[0]) for i in units.index],
+        "1Mb_bin_alleles_simhyb.txt",
+        "indel_bin_alleles_simhyb.txt"
+        
+rule run_pileup:
+    input:
+        ["data/mapQ-filter/{}.bam".format(i[0]) for i in units.index],
+        ["data/mapQ-filter/{}.bam.bai".format(i[0]) for i in units.index],
+        ref=config["genome"]
+    output:
+        temp("simhyb_pileup.txt"),
+        "parsed_simhyb_pileup.txt"
+    threads: config["params"]["pileup"]["threads"]
+    shell: """
+        python2 scripts/beta-run-mpileup-KRA.py -t {threads} -r {input.ref} -o {output[0]}
+        python2 scripts/mpileup-parser-v2.py -t {threads} -f {output[0]}
+    """
+
+rule call_alleles:
+    input:
+        "parsed_simhyb_pileup.txt",
+        "../1_high_cov_variants/Dataset_S2.tsv"
+    output:
+        "het_hom_alleles_simhyb_pileup.txt"
+    shell: """
+        python2 scripts/CallAllelesAB.py {input[0]} {output} {input[1]}
+    """
+    
+rule bin_genotypes:
+    input:
+        "het_hom_alleles_simhyb_pileup.txt",
+        "../1_high_cov_variants/Dataset_S2.tsv"
+    output:
+        "1Mb_bin_alleles_simhyb.txt"
+    params:
+        binsize=1000000
+    shell: """
+        python2 scripts/bin-by-genotypeC.py {input[0]} {output} {params.binsize} {input[1]}
+    """
+
+rule indel_allelic_ratio:
+    input:
+        "../2_low_cov_cnv/LOP_outlier_vars_to_genotype.tsv",
+        "het_hom_alleles_simhyb_pileup.txt"
+    output:
+        "indels_simhybs.tsv",
+        "indel_bin_alleles_simhyb.txt"
+    shell: """
+        Rscript scripts/make_simhyb_table.R {input[0]} {output[0]}
+        python scripts/indel-allelic-ratio-v3.py -a {input[1]} -l {output[0]} -o {output[1]}
+    """
+
+include: "rules/samtools_index_se.rules"
+include: "rules/bam_mapqual_filter.rules"
+include: "rules/samtools_merge.rules"
+include: "rules/mark_duplicates.rules"
+include: "rules/align.rules"
+include: "rules/cutadapt_pe.rules"
+include: "rules/cutadapt.rules"
+include: "rules/cutadapt_hardtrim.rules"
+include: "rules/make_simhybs.rules"
