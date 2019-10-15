@@ -4,7 +4,6 @@
 
 library(tidyverse)
 library(MeanShift)
-library(plotly)
 library(ggbeeswarm)
 library(gridExtra)
 

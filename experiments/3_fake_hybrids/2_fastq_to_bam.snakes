@@ -37,7 +37,8 @@ rule all:
     input: 
         ["data/mapQ-filter/{}.bam.bai".format(i[0]) for i in units.index],
         "1Mb_bin_alleles_simhyb.txt",
-        "indel_bin_alleles_simhyb.txt"
+        "indel_bin_alleles_simhyb.txt",
+        "results_copied.done"
         
 rule run_pileup:
     input:
@@ -85,6 +86,17 @@ rule indel_allelic_ratio:
     shell: """
         Rscript scripts/make_simhyb_table.R {input[0]} {output[0]}
         python scripts/indel-allelic-ratio-v3.py -a {input[1]} -l {output[0]} -o {output[1]}
+    """
+
+rule copy_results:
+    input:
+        "1Mb_bin_alleles_simhyb.txt",
+        "indel_bin_alleles_simhyb.txt"
+    output:
+        "results_copied.done"
+    shell: """
+        cp {input} ../../results
+        touch {output}
     """
 
 include: "rules/samtools_index_se.rules"

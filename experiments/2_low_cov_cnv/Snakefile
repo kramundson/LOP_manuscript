@@ -45,7 +45,19 @@ rule all:
         ["data/plots/{}-dosage_plot.tsv".format(i[0]) for i in units.index],
         "2019_0107_LOP_250k_dosage_genotypes_50percband.tsv", # sketchy
         "LOP_outlier_vars_all.tsv",
+        "LOP_outlier_vars_to_genotype.tsv",
+        "results_copied.done"
+        
+rule copy_results:
+    input:
+        "2019_0107_LOP_250k_dosage_genotypes_50percband.tsv",
         "LOP_outlier_vars_to_genotype.tsv"
+    output:
+        "results_copied.done"
+    shell: """
+        cp {input} ../../results
+        touch {output}
+    """
         
 include: "rules/dosage_outliers.rules"
 include: "rules/dosage_genotypes.rules"

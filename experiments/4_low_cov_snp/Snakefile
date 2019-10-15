@@ -60,3 +60,14 @@ rule indel_allelic_ratio:
     shell: """
         python scripts/indel-allelic-ratio-v3.py -a {input[0]} -l {input[1]} -o {output[0]}
     """
+
+rule copy_results:
+    input:
+        "1Mb_bin_alleles_LOP.txt",
+        "indel_bin_alleles_LOP.txt"
+    output:
+        "results_copied.done"
+    shell: """
+        cp {input} ../../results
+        touch {output}
+    """

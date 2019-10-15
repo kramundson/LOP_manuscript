@@ -4,6 +4,8 @@
 
 # USAGE: Rscript scripts/make_simhyb_lesions.R input_lesions_real output_lesions_simulated_hybs
 
+library(tidyverse)
+
 setwd("Desktop/Comai_Lab/github-repositories/squeaky_clean_LOP/experiments/3_fake_hybrids/")
 args <- commandArgs(trailingOnly = F)
 

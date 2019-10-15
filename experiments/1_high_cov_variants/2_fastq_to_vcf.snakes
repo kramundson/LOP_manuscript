@@ -43,7 +43,24 @@ rule all:
         "LOP_SNP.bed",
         "FigS7.pdf",
         "FigS8.pdf",
+        "FigS9.pdf",
+        "results_copied.done"
+
+rule copy_results:
+    input:
+        "Dataset_S1.tsv",
+        "Dataset_S2.tsv",
+        "Dataset_S3.tsv",
+        "LOP_SNP.bed",
+        "FigS7.pdf",
+        "FigS8.pdf",
         "FigS9.pdf"
+    output:
+        "results_copied.done"
+    shell: """
+        cp {input} ../../results
+        touch {output}
+    """
 
 include: "rules/get_depth_metrics.rules"
 include: "rules/datasets_figures.rules"
