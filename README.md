@@ -26,7 +26,7 @@ conda config --add envs_dirs ./.conda/envs
 conda config --add pkgs_dirs ./.conda/pkgs
 ```
 
-Build conda environment
+Build conda environment. Environment currently not resolvable--fix in progress
 
 ```
 conda env create -f environment.yaml
