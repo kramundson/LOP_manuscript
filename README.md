@@ -10,7 +10,11 @@ Install miniconda3
 
 ```
 wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
-bash Miniconda3-latest-Linux-x86_64.sh
+# hangs when using latest version of conda, so I rolled back to what worked with my other pipelines
+# bash Miniconda3-latest-Linux-x86_64.sh
+
+wget https://repo.anaconda.com/miniconda/Miniconda3-4.6.14-Linux-x86_64.sh
+bash Miniconda3-4.6.14-Linux-x86_64.sh
 
 # follow prompts
 # yes to putting conda in your path

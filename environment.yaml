@@ -21,10 +21,8 @@ dependencies:
   - pyyaml=3.11
   - pandas=0.20.3
   - parallel
-  - r-base=3.3.2
+  - r-base
   - r-tidyverse
   - r-egg
   - r-wavethresh
-  - r-rlang=0.2.0
   - seqtk
-  - vcflib
