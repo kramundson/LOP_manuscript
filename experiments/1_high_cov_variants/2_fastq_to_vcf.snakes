@@ -48,7 +48,7 @@ rule all:
 
 rule copy_results:
     input:
-        "data/calls/all-calls.vcf"
+        "data/calls/all-calls.vcf",
         "Dataset_S1.tsv",
         "Dataset_S2.tsv",
         "Dataset_S3.tsv",

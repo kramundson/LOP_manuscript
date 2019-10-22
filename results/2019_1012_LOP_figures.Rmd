@@ -9,19 +9,14 @@ output: html_notebook
 library(tidyverse)
 library(grid)
 library(gridExtra)
+library(MeanShift)
+library(ggbeeswarm)
 ```
 
 ```{r}
 files <- dir(path = "../experiments/2_low_cov_cnv/data/plots", pattern = "-dosage_plot.tsv", full.names = T)
 files
 ```
-
-```{r}
-names(all_dosage) <- str_extract(files, "[24]x_.+") %>% 
-  str_remove("-dosage_plot.tsv")
-names(all_dosage)
-```
-
 
 ```{r}
 all_dosage <- files %>% 
@@ -47,6 +42,13 @@ chrom_dosage <- bin_dosage %>%
 ```
 
 ```{r}
+names(all_dosage) <- str_extract(files, "[24]x_.+") %>% 
+  str_remove("-dosage_plot.tsv")
+names(all_dosage)
+```
+
+
+```{r}
 with_totals <- chrom_dosage %>% 
   group_by(sample, sample_num) %>% 
   summarize(total_readcount = sum(chrom_readcount)) %>% 
@@ -61,7 +63,7 @@ with_control <- with_totals %>%
   mutate(chromshort = str_replace(chromshort, "^0", "")) %>% 
   rename(control_chrom_readcount = chrom_readcount) %>% 
   rename(control_total_readcount = total_readcount) %>%
-  select(-sample, -sample_num) %>% 
+  dplyr::select(-sample, -sample_num) %>% 
   left_join(with_totals, .) %>% 
   mutate(normcov = 2* (chrom_readcount / total_readcount) / (control_chrom_readcount / control_total_readcount)) %>% 
   filter(!sample %in% c("4x_LOP868", "2x_LOP868_279"))
@@ -84,7 +86,8 @@ fig2A <- with_control %>%
   theme(panel.grid = element_blank(),
         panel.background=element_rect(fill="white",color="black"),
         axis.title.x=element_text(size=18),
-        axis.title.y=element_text(size=18,angle= 90, vjust=0.5), plot.title=element_text(size=24,face="bold",hjust=0,color="black"),
+        axis.title.y=element_text(size=18,angle= 90, vjust=0.5),
+        plot.title=element_text(size=24,face="bold",hjust=0,color="black"),
         axis.text.x=element_text(size=18,color="black"),
         axis.text.y=element_text(size=18,color="black"),
         panel.grid.major.x = element_line(color = "gray70"))
@@ -97,6 +100,7 @@ wihthout having to manually specify them.
 
 ```{r}
 trisomics <- with_control$sample[which(with_control$normcov >= mean(with_control$normcov) + 3 * sd(with_control$normcov))]
+trisomics
 ```
 
 ```{r}
@@ -166,7 +170,7 @@ fig_4a <- dp %>%
   filter(sample == "4x_LOP868") %>% 
   ggplot(., aes(x = start, y = gc_norm_dp)) + 
   geom_point(alpha = 0.3, size = 0.8) +
-  labs(x = "", y = "Alca Tarma Copy Number") +
+  labs(x = "Position (Mb)", y = "Alca Tarma\nCopy Number") +
   ggtitle("A") +
   scale_y_continuous(limits = c(0, 220), breaks = c(0, sc[4]*.25, sc[4]*.5, sc[4]*0.75, sc[4], sc[4]*1.25, sc[4]*1.5, sc[4]*1.75, sc[4]*2), labels = c(0,1,2,3,4,5,6,7,8)) +
   scale_x_continuous(limits = c(0,6e7), breaks = seq(0, 6e7, by = 2e7), labels = seq(0, 60, by = 20)) +
@@ -180,9 +184,10 @@ fig_4a <- dp %>%
     axis.text = element_text(size = 14),
     axis.title = element_text(size = 16),
     strip.text = element_text(size = 14),
-    # plot.title = element_text(size = 24, face = "bold"),
+    plot.title = element_text(size = 24, face = "bold", hjust = -0.06, vjust = 2),
     strip.background = element_rect(fill = "white", color = "black")
   )
+fig_4a
 ```
 
 ```{r}
@@ -194,7 +199,7 @@ fig_4b <- dp %>%
   ggplot(., aes(x = start, y = gc_norm_dp)) + 
   geom_point() +
   geom_line() +
-  labs(x = "", y = "Alca Tarma Copy Number") +
+  labs(x = "Position (Mb)", y = "Alca Tarma\nCopy Number") +
   ggtitle("B") +
   scale_y_continuous(limits = c(0, 220), breaks = c(0, sc[4]*.25, sc[4]*.5, sc[4]*0.75, sc[4], sc[4]*1.25, sc[4]*1.5, sc[4]*1.75, sc[4]*2), labels = c(0,1,2,3,4,5,6,7,8)) +
   scale_x_continuous(breaks = seq(3.2e7, 3.4e7, by = 2.5e5), labels = seq(32,34,by=0.25)) +
@@ -208,7 +213,7 @@ fig_4b <- dp %>%
     axis.text = element_text(size = 14),
     axis.title = element_text(size = 16),
     strip.text = element_text(size = 14),
-    # plot.title = element_text(size = 24, face = "bold"),
+    plot.title = element_text(size = 24, face = "bold", hjust = -0.06, vjust = 2),
     strip.background = element_rect(fill = "white", color = "black")
   )
 fig_4b
@@ -220,7 +225,7 @@ fig_4c <- bin_dosage %>%
   ggplot(., aes(x = start, y = normcov)) +
   geom_quasirandom(alpha = 0.8, size = 0.8) +
   guides(color = F) +
-  labs(x = "", y = "Standardized Coverage") +
+  labs(x = "Position (Mb)", y = "Standardized\nCoverage") +
   scale_x_continuous(breaks = seq(3.2e7,3.4e7,by=2.5e5), labels=seq(32,34,by=0.25)) +
   facet_wrap(~chrom, strip.position = "r") +
   ggtitle("C") +
@@ -235,19 +240,23 @@ fig_4c <- bin_dosage %>%
     panel.background = element_rect(fill = "white", color = "black"),
     axis.text = element_text(size = 14),
     axis.title = element_text(size = 16),
+    plot.title = element_text(size = 24, face = "bold", hjust = -0.06, vjust = 2),
     strip.text = element_text(size = 14))
 fig_4c
 ```
 
 ```{r}
-fig_4d <- chrom_overlay(bin_dosage, "chr06") + ggtitle("D")
+fig_4d <- chrom_overlay(bin_dosage, "chr06") + 
+  ggtitle("D") + 
+  labs(x = "Position (Mb)", y = "Standardized\nCoverage") +
+  theme(plot.title = element_text(size = 24, face = "bold", hjust = -0.06, vjust = 2))
 fig_4d
 ```
 
 ```{r}
 fig4 <- grid.arrange(fig_4a, fig_4b, fig_4c, fig_4d, nrow = 4)
 ggsave("Fig4.png", plot = fig4, width = 12, height = 12, units = "in", device = "png")
-ggsave("Fig4.pdf", plot = fig4, width = 12, height = 12, units = "in", device = "pdf")
+# ggsave("Fig4.pdf", plot = fig4, width = 12, height = 12, units = "in", device = "pdf")
 ```
 
 ```{r}
@@ -490,19 +499,19 @@ melt_bin_alleles <- function(x) {
   df <- read_tsv(x, na = ".")
   
   ObsHI <- df %>% 
-    select(Chrom,Start,End,Max,matches("Obs%A$")) %>% 
+    dplyr::select(Chrom,Start,End,Max,matches("Obs%A$")) %>% 
     mutate(chrbin = floor(Start/df$End[1])) %>% 
     gather(Ind, ObsPerHI, -Chrom, -Start, -End, -Max, -chrbin) %>% 
     mutate(Ind = str_replace_all(Ind, "v-(.+)-Obs%A", "\\1"))
   
   CalcHI <- df %>% 
-    select(Chrom, Start, End, Max, matches('Calc%A$')) %>% 
+    dplyr::select(Chrom, Start, End, Max, matches('Calc%A$')) %>% 
     mutate(chrbin = floor(Start/df$End[1])) %>% 
     gather(Ind, CalcPerHI, -Chrom, -Start, -End, -Max, -chrbin) %>% 
     mutate(Ind = str_replace_all(Ind, "v-(.+)-Calc%A", "\\1")) 
   
   Cov <- df %>% 
-    select(Chrom, Start, End, Max, matches('Cov$')) %>% 
+    dplyr::select(Chrom, Start, End, Max, matches('Cov$')) %>% 
     mutate(chrbin = floor(Start/df$End[1])) %>% 
     gather(Ind, Cov, -Chrom, -Start, -End, -Max, -chrbin) %>% 
     mutate(Ind = str_replace_all(Ind, "v-(.+)-Cov", "\\1"))
@@ -539,7 +548,7 @@ nc <- big %>%
 ```{r}
 # Define bins
 bigp <- big %>% 
-  select(Chrom, Start, End) %>% 
+  dplyr::select(Chrom, Start, End) %>% 
   distinct() %>% 
   mutate(overlap_test = NA) %>% 
   mutate(missing_n_test = NA) %>%
@@ -564,7 +573,7 @@ for (i in 1:nrow(bigp)) {
     filter(Chrom == chrom) %>% 
     filter(Start == strt) %>% 
     filter(End == endd) %>% 
-    select(ObsPerHI)
+    dplyr::select(ObsPerHI)
   
   pmin <- min(rng_p$ObsPerHI, na.rm = T)
   print(paste("pmin:", pmin))
@@ -579,7 +588,7 @@ for (i in 1:nrow(bigp)) {
     filter(Chrom == chrom) %>% 
     filter(Start == strt) %>% 
     filter(End == endd) %>% 
-    select(ObsPerHI)
+    dplyr::select(ObsPerHI)
   
   nmin <- min(rng_n$ObsPerHI, na.rm = T)
   print(paste("nmin:", nmin))
@@ -645,6 +654,146 @@ ggsave("Fig_S2.png", width = 10, height = 10, units = "in", device = "png", plot
 ggsave("Fig_S2.pdf", width = 10, height = 10, units = "in", device = "pdf", plot = fig_s2)
 ```
 
+Aggregate allele information up to chromosome to make Fig. 2D
+
+```{r}
+chrom_real <- real %>% 
+  group_by(Chrom, Ind) %>% 
+  summarize(ObsHI_sum_chrom = sum(Cov, na.rm = T), ObsHI_sum_HIcalls = sum(HIcalls, na.rm = T)) %>% 
+  mutate(ObsHI_perc_chrom = ObsHI_sum_HIcalls / ObsHI_sum_chrom) %>% 
+  filter(Ind %in% trisomics) %>% 
+  arrange(Ind, Chrom) %>% 
+  mutate(Ind_num = which(unique(real$Ind) == Ind))
+```
+
+Per Isabelle request, add simulated triploid hybrid info using hom SNP dataset here
+
+```{r}
+simhyb_chrom_allele <- melt_bin_alleles("chrom_simhyb_LOP_hom_alleles.tsv") %>% 
+  filter(!is.na(Inducer))
+head(simhyb_chrom_allele)
+```
+
+```{r}
+ctrl_plt <-  melt_bin_alleles("chrom_simhyb_LOP_hom_alleles.tsv") %>% 
+  # filter(Chrom %in% c("chr01", "chr06")) %>%
+  ggplot(., aes(x = Ind, y = ObsPerHI, group = Chrom, color = Chrom)) +
+  geom_point(position = position_dodge(width = 1), size = 1) +
+  scale_y_continuous(limits=c(-0.5,100)) +
+  geom_vline(xintercept = c(100.5, 200.5), linetype = "dashed") +
+  # geom_line(y = 33, color = "red", linetype = "dashed") +
+  labs(x = "Simulated hybrid", y = "% HI Allele\nPer Chromosome") +
+  annotate("text", x = 50, y = 75, label = "Simulated\nAlca Tarma x PL4") +
+  annotate("text", x = 150, y = 75, label = "Simulated\nAlca Tarma x IVP101") +
+  annotate("text", x = 250, y = 75, label = "Simulated Alca Tarma\nMatrilineal") +
+  # facet_wrap(~Inducer) +
+  theme(panel.background = element_rect(fill="white",color="black"),
+        panel.grid.major.x=element_line(), panel.grid.minor=element_blank(),
+        # axis.text.x=element_text(angle=45, hjust=1, size=12), legend.position = "bottom",
+        axis.text.x = element_blank(),
+        axis.text.y=element_text(size=18, color="black"),
+        axis.title.x=element_text(size=18,color="black"),
+        axis.title.y=element_text(size=18,vjust=0.5, angle = 90),
+        plot.title=element_text(size=24,face="bold",hjust=0))
+ctrl_plt
+# ggsave("Fig2D_simhyb_ctrl.png", plot = ctrl_plt, width = 12, height = 4.5, units = "in", device = "png")
+```
+
+This version of Fig. 2D has been removed from the manuscripot. Coauthors were not a fan of the green stripe.
+
+```{r}
+# chrom_allele_plt <- chrom_real %>% 
+#   mutate(Ind = str_extract(Ind, "LOP868_[0-9]{3,}")) %>% 
+#   mutate(Ind = str_replace(Ind, "_", ".")) %>% 
+#   ggplot(., aes(x = Ind, y = ObsHI_perc_chrom, group = Chrom)) +
+#   # annotate(geom_rect(xmin = 0, xmax = 20, ymin = min(simhyb_chrom_allele$ObsPerHI), ymax = max(simhyb_chrom_allele$ObsPerHI), fill = "#42f54e", alpha = 0.5)) +
+#   # annotate("rect", x = 0, xmax = 20, ymin = 25, ymax = 42, fill = "#42f54e", alpha = 0.5) +
+#   geom_rect(xmin = 0, xmax = 20, ymin = min(simhyb_chrom_allele$ObsPerHI), ymax = max(simhyb_chrom_allele$ObsPerHI), fill = "#42f54e", alpha = 0.5) +
+#   geom_point(position = position_dodge(width = 1), size = 1) +
+#   geom_vline(xintercept = seq(1.5,18.5,by=1), color="gray60", se = F) +
+#   theme(panel.background = element_rect(fill="white",color="black"),
+#         panel.grid.major.x=element_line(), panel.grid.minor=element_blank(),
+#         axis.text.x=element_blank(),
+#         
+#         # legend.position = "bottom",
+#         axis.text.y=element_blank(),
+#         axis.title.x=element_blank(),
+#         axis.title.y=element_blank()) +
+#         # plot.title=element_text(size=24,face="bold",hjust=0)) +
+#   scale_y_continuous(limits=c(-0.5,100)) +
+#   labs(x = "Aneuploid Individual", y = "% HI Allele\nPer Chromosome")
+# chrom_allele_plt
+# ggsave("Fig2D.png", plot = chrom_allele_plt, width = 12, height = 4.5, units = "in", device = "png")
+# ggsave("Fig2D.pdf", plot = chrom_allele_plt, width = 5.717, height = 0.758, units = "in", device = "pdf")
+```
+
+Update: Instead of drawing a green stripe, plot one or two simulated hybrid controls
+in the same way as the aneuploids.
+
+```{r}
+# pick random samples from IVP101 and PL4 simulated hybrids to show in Fig. 2D.
+set.seed(88)
+sample(filter(simhyb_chrom_allele, Inducer == "IVP101")$Ind, 1)
+sample(filter(simhyb_chrom_allele, Inducer == "PL4")$Ind, 1)
+```
+
+> Use these control simulated hybrids as represesntative examples for Fig. 2D
+
+```{r}
+fig2d <- chrom_real %>% 
+  mutate(Ind = str_extract(Ind, "LOP868_[0-9]{3,}")) %>% 
+  mutate(Ind = str_replace(Ind, "_", ".")) %>%
+  bind_rows(., filter(simhyb_chrom_allele, Ind %in% c("2052_SRR6123032_SRR6123183_3052", "118_SRR6123032_SRR6123031_1118"))) %>% 
+  mutate(Ind = ifelse(Ind == "2052_SRR6123032_SRR6123183_3052", "Simulated\nAlca Tarma x IVP101", Ind)) %>% 
+  mutate(Ind = ifelse(Ind == "118_SRR6123032_SRR6123031_1118", "Simulated\nAlca Tarma x PL4", Ind)) %>% 
+  mutate(ObsHI_perc_chrom = ifelse(is.na(ObsHI_perc_chrom), ObsPerHI, ObsHI_perc_chrom)) %>%
+  ggplot(., aes(x = Ind, y = ObsHI_perc_chrom, group = Chrom)) +
+  geom_point(position = position_dodge(width = 1), size = 1) +
+  geom_vline(xintercept = seq(1.5,20.5,by=1), color="gray60", se = F) +
+  theme(panel.background = element_rect(fill="white",color="black"),
+        panel.grid.major.x=element_line(), panel.grid.minor=element_blank(),
+        axis.text.x=element_blank(),
+        
+        # legend.position = "bottom",
+        axis.text.y=element_blank(),
+        axis.title.x=element_blank(),
+        axis.title.y=element_blank()) +
+        # plot.title=element_text(size=24,face="bold",hjust=0)) +
+    # theme(panel.background = element_rect(fill="white",color="black"),
+  #       panel.grid.major.x=element_line(), panel.grid.minor=element_blank(),
+  #       axis.text.x=element_text(angle= 45, color = "black", vjust = 1, hjust = 1, size = 12),
+  #       axis.text.y=element_text(size = 12, color = "black"),
+  #       axis.title.x=element_text(angle = 0, color = "black", size = 18),
+  #       axis.title.y=element_text(color = "black", size = 18),
+  #       plot.title=element_text(size=24,face="bold",hjust=0)) +
+  scale_y_continuous(limits=c(-0.5,100)) +
+  labs(x = "Aneuploid Individual", y = "% HI Allele\nPer Chromosome")
+ggsave("Fig2D.png", plot = fig2d, width = 12, height = 3.75, units = "in", device = "png")
+ggsave("Fig2D.pdf", plot = fig2d, width = 5.717, height = 0.758, units = "in", device = "pdf")
+```
+
+```{r}
+chrom_real %>% 
+  mutate(Ind = str_extract(Ind, "LOP868_[0-9]{3,}")) %>% 
+  mutate(Ind = str_replace(Ind, "_", ".")) %>% 
+  ggplot(., aes(x = Ind, y = ObsHI_perc_chrom, group = Chrom)) +
+  # geom_rect(xmin = 0, xmax = 20, ymin = min(simhyb_chrom_allele$ObsPerHI), ymax = max(simhyb_chrom_allele$ObsPerHI), fill = "#42f54e", alpha = 0.5) +
+  geom_point(position = position_dodge(width = 1), size = 1) +
+  geom_vline(xintercept = seq(1.5,18.5,by=1), color="gray60", se = F) +
+  theme(panel.background = element_rect(fill="white",color="black"),
+        panel.grid.major.x=element_line(), panel.grid.minor=element_blank(),
+        axis.text.x=element_blank(),
+        
+        # legend.position = "bottom",
+        axis.text.y=element_blank(),
+        axis.title.x=element_blank(),
+        axis.title.y=element_blank()) +
+        # plot.title=element_text(size=24,face="bold",hjust=0)) +
+  scale_y_continuous(limits=c(-0.5,100)) +
+  labs(x = "Aneuploid Individual", y = "% HI Allele\nPer Chromosome")
+```
+
+
 Overlay combined dosage and 1Mb SNP plots for Fig. S1.
 These were later put together in Affinity Designer with metaphase spreads, if spreads were available.
 TODO: put raw images of spreads in a separate folder.
@@ -661,7 +810,7 @@ mid <- function(x) {
 plot.snp <- function(x,y,z) {
   keep <- real3 %>% 
     filter(Ind == x) %>% 
-    select(Chrom, Start, End, Max, chrbin, Ind, ObsPerHI, Cov, HIcalls, ObsPerHI_qc_cov)
+    dplyr::select(Chrom, Start, End, Max, chrbin, Ind, ObsPerHI, Cov, HIcalls, ObsPerHI_qc_cov)
     
   keep$bin <- seq(1:nrow(keep))
   # print(head(keep))

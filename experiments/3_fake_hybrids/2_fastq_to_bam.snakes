@@ -38,6 +38,7 @@ rule all:
         ["data/mapQ-filter/{}.bam.bai".format(i[0]) for i in units.index],
         "1Mb_bin_alleles_simhyb.txt",
         "indel_bin_alleles_simhyb.txt",
+        "chrom_bin_hom_alleles_simhyb_pileup.txt",
         "results_copied.done"
         
 rule run_pileup:
@@ -88,10 +89,25 @@ rule indel_allelic_ratio:
         python scripts/indel-allelic-ratio-v3.py -a {input[1]} -l {output[0]} -o {output[1]}
     """
 
+rule chrom_genotypes:
+    input:
+        "het_hom_alleles_simhyb_pileup.txt",
+        "../1_high_cov_variants/Dataset_S1.tsv"
+    output:
+        "hom_alleles_simhyb_pileup.txt",
+        "chrom_bin_hom_alleles_simhyb_pileup.txt"
+    params:
+        binsize = 100000000
+    shell: """
+        Rscript scripts/hom_simhyb_alleles.R
+        python2 scrips/bin-by-genotypeC.py {output[0]} {output[1]} {params.binsize} {input[1]}
+    """
+
 rule copy_results:
     input:
         "1Mb_bin_alleles_simhyb.txt",
-        "indel_bin_alleles_simhyb.txt"
+        "indel_bin_alleles_simhyb.txt",
+        "chrom_bin_hom_alleles_simhyb_pileup.txt"
     output:
         "results_copied.done"
     shell: """

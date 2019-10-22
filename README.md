@@ -38,6 +38,8 @@ conda env create -f environment.yaml
 
 # activate environment
 conda activate LOP_manuscript
+
+# note, extra steps needed to get gatk3.8 through conda
 ```
 
 Install R package MeanShift from CRAN archive
