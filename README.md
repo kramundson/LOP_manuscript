@@ -9,10 +9,8 @@ in earlier experiments are used in later experiments, so executing each in order
 Install miniconda3
 
 ```
-wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+# wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
 # hangs when using latest version of conda, so I rolled back to what worked with my other pipelines
-# bash Miniconda3-latest-Linux-x86_64.sh
-
 wget https://repo.anaconda.com/miniconda/Miniconda3-4.6.14-Linux-x86_64.sh
 bash Miniconda3-4.6.14-Linux-x86_64.sh
 
@@ -40,6 +38,7 @@ conda env create -f environment.yaml
 conda activate LOP_manuscript
 
 # note, extra steps needed to get gatk3.8 through conda
+wget https://github.com/broadgsa/gatk-protected/archive/3.8-1.tar.gz
 ```
 
 Install R package MeanShift from CRAN archive
